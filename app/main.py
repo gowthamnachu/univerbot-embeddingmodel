@@ -108,7 +108,7 @@ async def health_check():
         )
 
 
-@app.post("/embed", response_model=EmbedResponse)
+@app.post(" ", response_model=EmbedResponse)
 async def generate_embedding(request: EmbedRequest):
     """Generate embedding for a single text."""
     try:
