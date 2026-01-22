@@ -1,44 +1,44 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 from sentence_transformers import SentenceTransformer
-import uvicorn
-import os
 from functools import lru_cache
+import os
+import asyncio
 
-app = FastAPI(title="UniverBot Embedding Service", version="1.0.0")
+app = FastAPI(
+    title="UniverBot Embedding Service",
+    version="1.0.0"
+)
 
-# Model configuration
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-EMBEDDING_DIMENSION = 384
+MAX_TEXT_LENGTH = 5000
+MAX_BATCH_SIZE = 100
 
-@app.on_event("startup")
-async def startup_event():
-    """Preload model on startup."""
-    print("🚀 Starting UniverBot Embedding Service...")
-    get_model()  # Preload the model
-    print("✅ Service ready!")
 
-# Load and cache the model
 @lru_cache(maxsize=1)
 def get_model():
-    """Load and cache the sentence transformer model."""
-    print(f"🔄 Loading embedding model: {EMBEDDING_MODEL}")
-    model = SentenceTransformer(EMBEDDING_MODEL)
-    print(f"✅ Model loaded. Dimension: {model.get_sentence_embedding_dimension()}")
-    return model
+    return SentenceTransformer(EMBEDDING_MODEL)
+
+
+@app.on_event("startup")
+def preload_model():
+    get_model()  # single, controlled load
 
 
 class EmbeddingRequest(BaseModel):
-    text: str
-    
+    text: str = Field(..., max_length=MAX_TEXT_LENGTH)
+
+
 class EmbeddingBatchRequest(BaseModel):
-    texts: List[str]
+    texts: List[str] = Field(..., max_items=MAX_BATCH_SIZE)
+
 
 class EmbeddingResponse(BaseModel):
     embedding: List[float]
     dimension: int
     model: str
+
 
 class EmbeddingBatchResponse(BaseModel):
     embeddings: List[List[float]]
@@ -47,73 +47,50 @@ class EmbeddingBatchResponse(BaseModel):
     count: int
 
 
-@app.get("/")
-async def root():
-    """Health check endpoint."""
+@app.get("/health")
+def health():
+    model = get_model()
     return {
-        "service": "UniverBot Embedding Service",
-        "status": "running",
+        "status": "healthy",
         "model": EMBEDDING_MODEL,
-        "dimension": EMBEDDING_DIMENSION
+        "dimension": model.get_sentence_embedding_dimension()
     }
 
 
-@app.get("/health")
-async def health():
-    """Detailed health check."""
-    try:
-        model = get_model()
-        return {
-            "status": "healthy",
-            "model": EMBEDDING_MODEL,
-            "dimension": model.get_sentence_embedding_dimension(),
-            "ready": True
-        }
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
+async def encode_async(texts):
+    loop = asyncio.get_running_loop()
+    model = get_model()
+    return await loop.run_in_executor(
+        None,
+        lambda: model.encode(
+            texts,
+            convert_to_numpy=True,
+            show_progress_bar=False
+        )
+    )
 
 
 @app.post("/embed", response_model=EmbeddingResponse)
-async def create_embedding(request: EmbeddingRequest):
-    """Generate embedding for a single text."""
-    try:
-        model = get_model()
-        embedding = model.encode(request.text, convert_to_numpy=True)
-        
-        return EmbeddingResponse(
-            embedding=embedding.tolist(),
-            dimension=len(embedding),
-            model=EMBEDDING_MODEL
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Embedding generation failed: {str(e)}")
+async def embed(request: EmbeddingRequest):
+    embedding = await encode_async(request.text)
+
+    return EmbeddingResponse(
+        embedding=embedding.tolist(),
+        dimension=len(embedding),
+        model=EMBEDDING_MODEL
+    )
 
 
 @app.post("/embed/batch", response_model=EmbeddingBatchResponse)
-async def create_embeddings_batch(request: EmbeddingBatchRequest):
-    """Generate embeddings for multiple texts (batch processing)."""
-    try:
-        if not request.texts:
-            raise HTTPException(status_code=400, detail="No texts provided")
-        
-        if len(request.texts) > 100:
-            raise HTTPException(status_code=400, detail="Maximum 100 texts per batch")
-        
-        model = get_model()
-        embeddings = model.encode(request.texts, convert_to_numpy=True, show_progress_bar=False)
-        
-        return EmbeddingBatchResponse(
-            embeddings=[emb.tolist() for emb in embeddings],
-            dimension=embeddings.shape[1],
-            model=EMBEDDING_MODEL,
-            count=len(embeddings)
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Batch embedding generation failed: {str(e)}")
+async def embed_batch(request: EmbeddingBatchRequest):
+    if not request.texts:
+        raise HTTPException(status_code=400, detail="No texts provided")
 
+    embeddings = await encode_async(request.texts)
 
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8001))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    return EmbeddingBatchResponse(
+        embeddings=[e.tolist() for e in embeddings],
+        dimension=embeddings.shape[1],
+        model=EMBEDDING_MODEL,
+        count=len(embeddings)
+    )
