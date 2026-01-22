@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List
 from sentence_transformers import SentenceTransformer
 import uvicorn
+import os
 from functools import lru_cache
 
 app = FastAPI(title="UniverBot Embedding Service", version="1.0.0")
@@ -10,6 +11,13 @@ app = FastAPI(title="UniverBot Embedding Service", version="1.0.0")
 # Model configuration
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 EMBEDDING_DIMENSION = 384
+
+@app.on_event("startup")
+async def startup_event():
+    """Preload model on startup."""
+    print("🚀 Starting UniverBot Embedding Service...")
+    get_model()  # Preload the model
+    print("✅ Service ready!")
 
 # Load and cache the model
 @lru_cache(maxsize=1)
@@ -107,4 +115,5 @@ async def create_embeddings_batch(request: EmbeddingBatchRequest):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    port = int(os.getenv("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port)
