@@ -5,6 +5,7 @@
 ### 1. Health Check Failures
 
 **Symptoms:**
+
 - "Application failed health checks"
 - "Service unhealthy"
 - Deployment times out
@@ -28,6 +29,7 @@ initialDelaySeconds: 30
 ```
 
 ✅ **Check 2: Test Locally**
+
 ```bash
 cd univerbot-embeddingmodel
 docker build -t test-embed .
@@ -38,6 +40,7 @@ curl http://localhost:8001/health
 ```
 
 Should return:
+
 ```json
 {
   "status": "healthy",
@@ -52,6 +55,7 @@ Should return:
 ### 2. Memory Issues (OOM - Out of Memory)
 
 **Symptoms:**
+
 - "Killed" in logs
 - "OOMKilled" error
 - Deployment crashes after starting
@@ -60,19 +64,21 @@ Should return:
 
 ✅ **Minimum RAM Required:** 180-200MB
 
-| Platform | Free Tier RAM | Works? | Fix |
-|----------|--------------|--------|-----|
-| Fly.io | 256MB | ⚠️ Tight | Increase to 512MB |
-| Koyeb | 512MB | ✅ Yes | Default OK |
-| Render | 512MB | ✅ Yes | Default OK |
-| Railway | 512MB | ✅ Yes | Default OK |
+| Platform | Free Tier RAM | Works?   | Fix               |
+| -------- | ------------- | -------- | ----------------- |
+| Fly.io   | 256MB         | ⚠️ Tight | Increase to 512MB |
+| Koyeb    | 512MB         | ✅ Yes   | Default OK        |
+| Render   | 512MB         | ✅ Yes   | Default OK        |
+| Railway  | 512MB         | ✅ Yes   | Default OK        |
 
 **For Fly.io - Upgrade Memory:**
+
 ```bash
 fly scale memory 512
 ```
 
 Or update `fly.toml`:
+
 ```toml
 [[vm]]
   memory = '512mb'  # Changed from 256mb
@@ -85,6 +91,7 @@ Or update `fly.toml`:
 ### 3. Port Binding Issues
 
 **Symptoms:**
+
 - "Address already in use"
 - "Failed to bind to port"
 - Works locally but not deployed
@@ -94,6 +101,7 @@ Or update `fly.toml`:
 ✅ **Use Dynamic PORT Variable**
 
 The fixed Dockerfile now uses `$PORT` environment variable:
+
 ```dockerfile
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}
 ```
@@ -101,14 +109,17 @@ CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}
 ✅ **Platform-Specific Checks:**
 
 **Render:**
+
 - Automatically provides `PORT` environment variable
 - No action needed
 
 **Fly.io:**
+
 - Uses `internal_port = 8001` in fly.toml
 - Automatically maps to public URL
 
 **Koyeb:**
+
 - Set "Exposed Port" to `8001` in dashboard
 - Enable "Public" exposure
 
@@ -117,6 +128,7 @@ CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}
 ### 4. Build Failures
 
 **Symptoms:**
+
 - "Failed to build Docker image"
 - "No such file or directory"
 - "requirements.txt not found"
@@ -124,6 +136,7 @@ CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}
 **Solutions:**
 
 ✅ **Check File Structure:**
+
 ```
 univerbot-embeddingmodel/
 ├── Dockerfile          ✅ Must be here
@@ -135,6 +148,7 @@ univerbot-embeddingmodel/
 ```
 
 ✅ **Verify Build Context:**
+
 ```bash
 # Test build locally
 cd univerbot-embeddingmodel
@@ -146,6 +160,7 @@ docker build -t test .
 ### 5. Model Download Failures
 
 **Symptoms:**
+
 - "Connection timeout during model download"
 - "HuggingFace hub unreachable"
 - "Failed to load model"
@@ -153,6 +168,7 @@ docker build -t test .
 **Solutions:**
 
 ✅ **Pre-download in Dockerfile (Already Done)**
+
 ```dockerfile
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 ```
@@ -161,6 +177,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 Some platforms block outbound connections during build. If model download fails:
 
 **Option 1: Use Larger Base Image**
+
 ```dockerfile
 FROM python:3.11  # Instead of python:3.11-slim
 ```
@@ -175,6 +192,7 @@ Download model locally and include in build (not recommended - increases image s
 ### 🚀 Koyeb (Recommended - Most Reliable)
 
 1. **Push to GitHub:**
+
    ```bash
    cd univerbot-embeddingmodel
    git init
@@ -206,12 +224,14 @@ Download model locally and include in build (not recommended - increases image s
 ### ✈️ Fly.io
 
 1. **Install Fly CLI:**
+
    ```bash
    # Windows
    powershell -Command "iwr https://fly.io/install.ps1 -useb | iex"
    ```
 
 2. **Login & Deploy:**
+
    ```bash
    cd univerbot-embeddingmodel
    fly auth login
@@ -220,6 +240,7 @@ Download model locally and include in build (not recommended - increases image s
    ```
 
 3. **If Memory Issues:**
+
    ```bash
    fly scale memory 512
    fly deploy
@@ -264,6 +285,7 @@ Download model locally and include in build (not recommended - increases image s
 ### 🚂 Railway
 
 1. **Create Project:**
+
    ```bash
    npm i -g @railway/cli
    railway login
@@ -282,6 +304,7 @@ Download model locally and include in build (not recommended - increases image s
 ## Quick Diagnostics
 
 ### Test 1: Local Docker
+
 ```bash
 cd univerbot-embeddingmodel
 docker build -t embed-test .
@@ -295,12 +318,14 @@ docker run -p 8001:8001 embed-test
 ```
 
 ### Test 2: Health Check
+
 ```bash
 curl http://localhost:8001/health
 # Expected: {"status":"healthy","model":"all-MiniLM-L6-v2","dimension":384,"ready":true}
 ```
 
 ### Test 3: Generate Embedding
+
 ```bash
 curl -X POST http://localhost:8001/embed \
   -H "Content-Type: application/json" \
@@ -310,6 +335,7 @@ curl -X POST http://localhost:8001/embed \
 ```
 
 ### Test 4: Memory Usage
+
 ```bash
 docker stats
 
@@ -321,6 +347,7 @@ docker stats
 ## Logs Analysis
 
 ### ✅ Healthy Logs Look Like:
+
 ```
 INFO:     Started server process
 INFO:     Waiting for application startup.
@@ -335,32 +362,40 @@ INFO:     Uvicorn running on http://0.0.0.0:8001
 ### ❌ Problem Logs:
 
 **Memory Issue:**
+
 ```
 Killed
 OOMKilled
 137 exit code
 ```
+
 **Fix:** Increase RAM to 512MB
 
 **Port Issue:**
+
 ```
 Address already in use
 Cannot bind to port
 ```
+
 **Fix:** Use PORT environment variable (already fixed in Dockerfile)
 
 **Model Download Issue:**
+
 ```
 ConnectionError: HuggingFace Hub
 Timeout during model download
 ```
+
 **Fix:** Check outbound network access, may need to change platform
 
 **Health Check Timeout:**
+
 ```
 Failed health check
 Service unhealthy after 3 attempts
 ```
+
 **Fix:** Increase grace period to 30-40 seconds
 
 ---
@@ -379,12 +414,14 @@ Once deployed successfully:
 1. **Get your service URL** (e.g., `https://your-app.koyeb.app`)
 
 2. **Update main backend `.env`:**
+
    ```env
    EMBEDDING_SERVICE_URL=https://your-app.koyeb.app
    EMBEDDING_PROVIDER=microservice
    ```
 
 3. **Test integration:**
+
    ```bash
    curl -X POST https://your-app.koyeb.app/embed \
      -H "Content-Type: application/json" \
@@ -401,15 +438,19 @@ Once deployed successfully:
 ## Performance Tuning
 
 ### Cold Start Optimization
+
 Model is pre-loaded in Docker image, so cold starts are ~2-3 seconds.
 
 ### Auto-scaling
+
 - **Fly.io:** `min_machines_running = 0` (scales to zero)
 - **Render:** Always-on on free tier
 - **Koyeb:** Always-on on free tier
 
 ### Request Optimization
+
 Use batch endpoint for multiple texts:
+
 ```bash
 curl -X POST /embed/batch \
   -d '{"texts":["text1","text2","text3"]}'
