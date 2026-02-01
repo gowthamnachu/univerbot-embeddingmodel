@@ -32,7 +32,7 @@ app.add_middleware(
 # Model configuration
 MODEL_NAME = "all-MiniLM-L6-v2"
 MODEL_DIMENSION = 384
-MAX_BATCH_SIZE = 100
+MAX_BATCH_SIZE = 100  # Full batch support for concurrent requests
 
 
 # Pydantic models for request/response

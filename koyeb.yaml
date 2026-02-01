@@ -1,9 +1,12 @@
 services:
   - name: univerbot-embedding
     type: web
-    instance_type: free
+    instance_type: nano  # 512MB RAM optimized
     regions:
       - was # Washington, D.C.
+    scaling:
+      min: 1
+      max: 1
     ports:
       - port: 8000
         protocol: http

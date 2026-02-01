@@ -8,6 +8,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8001
+ENV MALLOC_TRIM_THRESHOLD_=100000
+ENV MALLOC_MMAP_THRESHOLD_=100000
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -25,5 +27,5 @@ COPY app/ ./app/
 # Expose port
 EXPOSE 8001
 
-# Run the application with dynamic PORT
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}
+# Run the application with dynamic PORT and memory optimizations
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001} --workers 1 --timeout-keep-alive 5
