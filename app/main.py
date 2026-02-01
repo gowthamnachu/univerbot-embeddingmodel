@@ -64,14 +64,19 @@ class HealthResponse(BaseModel):
     ready: bool
 
 
+# Global flag to track model readiness
+_model_ready = False
+
 # Lazy load the model to avoid startup delays
 @lru_cache(maxsize=1)
 def get_model():
     """Load and cache the sentence transformer model."""
+    global _model_ready
     print(f"🔄 Loading embedding model: {MODEL_NAME}...")
     from sentence_transformers import SentenceTransformer
     model = SentenceTransformer(MODEL_NAME)
     print(f"✅ Model loaded successfully. Dimension: {model.get_sentence_embedding_dimension()}")
+    _model_ready = True
     return model
 
 
@@ -90,18 +95,29 @@ async def startup_event():
 @app.get("/", response_model=HealthResponse)
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint - lightweight check without loading model."""
+    return HealthResponse(
+        status="healthy" if _model_ready else "starting",
+        model=MODEL_NAME,
+        dimension=MODEL_DIMENSION,
+        ready=_model_ready
+    )
+
+
+@app.get("/ready", response_model=HealthResponse)
+async def readiness_check():
+    """Readiness check endpoint - ensures model is loaded."""
     try:
         model = get_model()
         return HealthResponse(
-            status="healthy",
+            status="ready",
             model=MODEL_NAME,
             dimension=MODEL_DIMENSION,
             ready=True
         )
     except Exception as e:
         return HealthResponse(
-            status=f"unhealthy: {str(e)}",
+            status=f"not ready: {str(e)}",
             model=MODEL_NAME,
             dimension=MODEL_DIMENSION,
             ready=False
